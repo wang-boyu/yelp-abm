@@ -21,11 +21,13 @@ class YelpOpinionDynamicsModel(mesa.Model):
         export_data: bool = False,
         max_steps: int = 100,
         num_consumers_per_census_tract: int = 3,
+        consumer_choice_strategy: str = "best",
     ):
         super().__init__()
         self.export_data = export_data
         self.max_steps = max_steps
         self.num_consumers_per_census_tract = num_consumers_per_census_tract
+        self.consumer_choice_strategy = consumer_choice_strategy
         self.restaurant_file = restaurant_file
         self.consumer_file = consumer_file
         self.restaurant_search_radius_feet = restaurant_search_radius_feet
@@ -46,7 +48,7 @@ class YelpOpinionDynamicsModel(mesa.Model):
 
         for restaurant in restaurant_agents:
             # TODO: set capacity based on restaurant checkin data
-            restaurant.capacity = random.randint(1, 10)
+            restaurant.capacity = random.randint(10, 200)
             self.restaurant_schedule.add(restaurant)
 
     def _get_census_tracts_agents_from_file(self):
@@ -80,13 +82,21 @@ class YelpOpinionDynamicsModel(mesa.Model):
                 )
                 agent_location = random_points_in_polygon(census_tract.geometry, 1)[0]
                 consumer_agent = ConsumerAgent(
-                    uuid4().int, self, agent_location, self.space.crs, agent_type
+                    uuid4().int,
+                    self,
+                    agent_location,
+                    self.space.crs,
+                    agent_type,
+                    self.consumer_choice_strategy,
                 )
-                neighbors = self.space.get_neighbors_within_distance(
-                    consumer_agent, self.restaurant_search_radius_feet
-                )
+                # neighbors = self.space.get_neighbors_within_distance(
+                #     consumer_agent, self.restaurant_search_radius_feet
+                # )
+                # consumer_agent.restaurant_candidates = [
+                #     r for r in neighbors if isinstance(r, RestaurantAgent)
+                # ]
                 consumer_agent.restaurant_candidates = [
-                    r for r in neighbors if isinstance(r, RestaurantAgent)
+                    r for r in self.restaurant_schedule.agents
                 ]
                 self.space.add_agents(consumer_agent)
                 self.agent_schedule.add(consumer_agent)
@@ -111,11 +121,8 @@ class YelpOpinionDynamicsModel(mesa.Model):
         self.agent_schedule.step()
         for restaurant in self.restaurant_schedule.agents:
             restaurant.visiting_history.append(restaurant.num_customers)
-            # print(
-            #     f"visiting history for {restaurant.unique_id}: {restaurant.visiting_history}"
-            # )
         self.running = self.restaurant_schedule.steps < self.max_steps
         if not self.running and self.export_data:
             self.export_visiting_history_to_parquet(
-                "data/processed/abm_visiting_history.parquet"
+                f"data/processed/abm_visiting_history_{self.consumer_choice_strategy}.parquet"
             )

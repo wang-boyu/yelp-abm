@@ -1,3 +1,4 @@
+import random
 from enum import Enum
 
 import mesa
@@ -63,18 +64,33 @@ class ConsumerAgent(mg.GeoAgent):
 
     type: ConsumerType
     restaurant_candidates: list[RestaurantAgent]
+    choice_strategy: str
 
     def __init__(
-        self, unique_id, model, geometry, crs, consumer_type: ConsumerType
+        self,
+        unique_id,
+        model,
+        geometry,
+        crs,
+        consumer_type: ConsumerType,
+        choice_strategy: str,
     ) -> None:
         super().__init__(unique_id, model, geometry, crs)
         self.type = consumer_type
+        self.choice_strategy = choice_strategy
 
     def step(self):
         available_restaurants = [r for r in self.restaurant_candidates if not r.is_full]
         if available_restaurants:
-            restaurant = max(
-                available_restaurants,
-                key=CONSUMER_PREFERENCES[self.type],
-            )
+            if self.choice_strategy == "random":
+                restaurant = random.choice(available_restaurants)
+            elif self.choice_strategy == "best":
+                restaurant = max(
+                    available_restaurants,
+                    key=CONSUMER_PREFERENCES[self.type],
+                )
+            else:
+                raise ValueError(
+                    f"Invalid choice strategy: {self.choice_strategy}. Choose from 'random' or 'best'."
+                )
             restaurant.add_customer()
