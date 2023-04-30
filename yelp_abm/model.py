@@ -1,11 +1,10 @@
 import random
 from uuid import uuid4
 
-import numpy as np
+import pandas as pd
 import geopandas as gpd
 import mesa
 import mesa_geo as mg
-from shapely.geometry import Point
 from tqdm import tqdm
 
 from .geo_agents import RestaurantAgent, ConsumerAgent, ConsumerType, CensusTractAgent
@@ -19,8 +18,12 @@ class YelpOpinionDynamicsModel(mesa.Model):
         consumer_file: str,
         model_crs: str = "ESRI:102696",
         restaurant_search_radius_feet: int = 70000,
+        export_data: bool = False,
+        max_steps: int = 100,
     ):
         super().__init__()
+        self.export_data = export_data
+        self.max_steps = max_steps
         self.restaurant_file = restaurant_file
         self.consumer_file = consumer_file
         self.restaurant_search_radius_feet = restaurant_search_radius_feet
@@ -93,9 +96,22 @@ class YelpOpinionDynamicsModel(mesa.Model):
             self.space.remove_agent(consumer)
             self.agent_schedule.remove(consumer)
 
+    def export_visiting_history_to_parquet(self, filename: str) -> None:
+        gdf = self.space.get_agents_as_GeoDataFrame(agent_cls=RestaurantAgent)
+        df = pd.DataFrame(gdf.drop(columns=["geometry"]))
+        df.to_parquet(filename)
+        print(f"Exported visiting history to {filename}.")
+
     def step(self):
         self._remove_consumers()
         self._create_consumers()
         self.restaurant_schedule.step()
         self.reset_randomizer(seed=random.randint(0, 1000000))
         self.agent_schedule.step()
+        for restaurant in self.restaurant_schedule.agents:
+            restaurant.visiting_history.append(restaurant.num_customers)
+        self.running = self.restaurant_schedule.steps < self.max_steps
+        if not self.running and self.export_data:
+            self.export_visiting_history_to_parquet(
+                "data/processed/abm_visiting_history.parquet"
+            )

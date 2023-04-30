@@ -22,9 +22,11 @@ class RestaurantAgent(mg.GeoAgent):
 
     capacity: int
     num_customers: int = 0
+    visiting_history: list[int]
 
     def __init__(self, unique_id, model, geometry, crs) -> None:
         super().__init__(unique_id, model, geometry, crs)
+        self.visiting_history = []
 
     @property
     def is_full(self):

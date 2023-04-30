@@ -1,3 +1,4 @@
 mesa-geo==0.5.0
 python-dotenv
 black
+pyarrow
