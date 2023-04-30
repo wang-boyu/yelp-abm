@@ -79,6 +79,9 @@ map_element = MapModule(
 model_kwargs = {
     "restaurant_file": "data/processed/ch_2_restaurants_st_louis_avg_sentiments.shp",
     "consumer_file": "data/processed/ch_4_population_age_group.shp",
+    "num_consumers_per_census_tract": mesa.visualization.Slider(
+        "Consumers per census tract", 3, 1, 10, 1
+    ),
     "max_steps": mesa.visualization.Slider("Max steps", 100, 1, 100, 1),
     "export_data": mesa.visualization.Checkbox(
         "Export visiting history after simulation", True

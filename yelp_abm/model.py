@@ -20,10 +20,12 @@ class YelpOpinionDynamicsModel(mesa.Model):
         restaurant_search_radius_feet: int = 70000,
         export_data: bool = False,
         max_steps: int = 100,
+        num_consumers_per_census_tract: int = 3,
     ):
         super().__init__()
         self.export_data = export_data
         self.max_steps = max_steps
+        self.num_consumers_per_census_tract = num_consumers_per_census_tract
         self.restaurant_file = restaurant_file
         self.consumer_file = consumer_file
         self.restaurant_search_radius_feet = restaurant_search_radius_feet
@@ -31,6 +33,7 @@ class YelpOpinionDynamicsModel(mesa.Model):
         self.agent_schedule = mesa.time.RandomActivation(self)
         self.space = mg.GeoSpace(crs=model_crs)
         self._create_restaurants()
+        self._create_census_tracts()
         self._create_consumers()
 
     def _create_restaurants(self):
@@ -46,7 +49,7 @@ class YelpOpinionDynamicsModel(mesa.Model):
             restaurant.capacity = random.randint(1, 10)
             self.restaurant_schedule.add(restaurant)
 
-    def _create_consumers(self):
+    def _get_census_tracts_agents_from_file(self):
         census_tracts_df = gpd.read_file(self.consumer_file).to_crs(self.space.crs)
         # filter to keep only census tracts in St. Louis, MO
         census_tracts_df = census_tracts_df.loc[
@@ -59,36 +62,34 @@ class YelpOpinionDynamicsModel(mesa.Model):
         census_tract_agents = census_tracts_creator.from_GeoDataFrame(
             census_tracts_df, unique_id="cnss_tr"
         )
+        return census_tract_agents
+
+    def _create_census_tracts(self):
+        census_tract_agents = self._get_census_tracts_agents_from_file()
         self.space.add_agents(census_tract_agents)
 
+    def _create_consumers(self):
+        census_tract_agents = self._get_census_tracts_agents_from_file()
         # 1 student, 1 mid-age, 1 senior per census tract
         for census_tract in tqdm(
             census_tract_agents, desc="Creating consumers in census tracts"
         ):
-            student = ConsumerAgent(
-                uuid4().int, self, None, self.space.crs, ConsumerType.STUDENT
-            )
-            mid_age = ConsumerAgent(
-                uuid4().int, self, None, self.space.crs, ConsumerType.MID_AGE
-            )
-            senior = ConsumerAgent(
-                uuid4().int, self, None, self.space.crs, ConsumerType.SENIOR
-            )
-
-            points = random_points_in_polygon(census_tract.geometry, 3)
-            student.geometry = points[0]
-            mid_age.geometry = points[1]
-            senior.geometry = points[2]
-
-            for consumer in student, mid_age, senior:
-                neighbors = self.space.get_neighbors_within_distance(
-                    consumer, self.restaurant_search_radius_feet
+            for _ in range(self.num_consumers_per_census_tract):
+                agent_type = random.choice(
+                    [ConsumerType.STUDENT, ConsumerType.MID_AGE, ConsumerType.SENIOR]
                 )
-                consumer.restaurant_candidates = [
+                agent_location = random_points_in_polygon(census_tract.geometry, 1)[0]
+                consumer_agent = ConsumerAgent(
+                    uuid4().int, self, agent_location, self.space.crs, agent_type
+                )
+                neighbors = self.space.get_neighbors_within_distance(
+                    consumer_agent, self.restaurant_search_radius_feet
+                )
+                consumer_agent.restaurant_candidates = [
                     r for r in neighbors if isinstance(r, RestaurantAgent)
                 ]
-                self.space.add_agents(consumer)
-                self.agent_schedule.add(consumer)
+                self.space.add_agents(consumer_agent)
+                self.agent_schedule.add(consumer_agent)
 
     def _remove_consumers(self):
         consumers = [a for a in self.space.agents if isinstance(a, ConsumerAgent)]
@@ -110,6 +111,9 @@ class YelpOpinionDynamicsModel(mesa.Model):
         self.agent_schedule.step()
         for restaurant in self.restaurant_schedule.agents:
             restaurant.visiting_history.append(restaurant.num_customers)
+            # print(
+            #     f"visiting history for {restaurant.unique_id}: {restaurant.visiting_history}"
+            # )
         self.running = self.restaurant_schedule.steps < self.max_steps
         if not self.running and self.export_data:
             self.export_visiting_history_to_parquet(
