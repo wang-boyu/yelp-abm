@@ -1,6 +1,8 @@
 Yelp Opinion Dynamics Model
 ===========================
 
+[![DOI](https://zenodo.org/badge/DOI/10.4230/LIPIcs.GIScience.2023.81.svg)](https://doi.org/10.4230/LIPIcs.GIScience.2023.81)
+
 ![](assets/screenshot.png)
 
 ## Summary
@@ -38,3 +40,7 @@ mesa runserver
 ```
 
 Then open your browser to [http://127.0.0.1:8521/](http://127.0.0.1:8521/) and press `Start`.
+
+## How to cite
+
+To cite this model in your publication, you can use the [CITATION.bib](https://github.com/wang-boyu/yelp-abm/blob/main/CITATION.bib).
