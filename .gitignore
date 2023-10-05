@@ -79,7 +79,6 @@ target/
 # exclude data from source control by default
 data/raw/*
 !data/processed/
-data/processed/*
 !data/processed/categorized_terms/
 data/interim/
 data/external/
